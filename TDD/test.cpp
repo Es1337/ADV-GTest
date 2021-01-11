@@ -4,7 +4,27 @@
 template<typename T>
 class CBuffer
 {
-	
+public:
+	CBuffer(size_t size) : buffer{ std::unique_ptr<T[]>(new T[size]) }, maxSize{ size } {}
+
+	void add(T item);
+	T get();
+
+	bool isEmpty() const;
+	bool isFull() const;
+
+	size_t capacity() const;
+	size_t currSize() const;
+
+	void clear();
+
+private:
+	std::unique_ptr<T[]> buffer;
+	size_t head = 0;
+	size_t tail = 0;
+	const size_t maxSize;
+	bool full;
+	std::mutex mu;
 };
 
 class BufferTest : public ::testing::Test
