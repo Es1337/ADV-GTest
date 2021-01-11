@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <mutex>
 
 template<typename T>
 class CBuffer
@@ -7,16 +8,61 @@ class CBuffer
 public:
 	CBuffer(size_t size) : buffer{ std::unique_ptr<T[]>(new T[size]) }, maxSize{ size } {}
 
-	void add(T item);
-	T get();
+	void add(T item) {
+		std::lock_guard<std::mutex> lock(mu);
+		buffer[head] = item;
 
-	bool isEmpty() const;
-	bool isFull() const;
+		if (full)
+		{
+			tail = (tail + 1) % maxSize;
+		}
 
-	size_t capacity() const;
-	size_t currSize() const;
+		head = (head + 1) % maxSize;
+		full = (head == tail);
+	}
 
-	void clear();
+	T get() { 
+		std::lock_guard<std::mutex> lock(mu);
+
+		if (isEmpty())
+		{
+			throw std::exception();
+		}
+
+		T val = buffer[tail];
+		full = false;
+		tail = (tail + 1) % maxSize;
+
+		return val;
+	}
+
+	bool isEmpty() const { return (!full && (head == tail)); }
+	bool isFull() const { return full; }
+
+	size_t getAllocatedSize() const { return maxSize; }
+	size_t getSize() const { 
+		size_t size = maxSize;
+
+		if (!full)
+		{
+			if (head >= tail)
+			{
+				size = head - tail;
+			}
+			else
+			{
+				size = maxSize + head - tail;
+			}
+		}
+
+		return size;
+	}
+
+	void clear() {
+		std::lock_guard<std::mutex> lock(mu);
+		head = tail;
+		full = false;
+	}
 
 private:
 	std::unique_ptr<T[]> buffer;
@@ -30,11 +76,10 @@ private:
 class BufferTest : public ::testing::Test
 {
 public:
-	CBuffer<int> cb;
+	CBuffer<int> cb{10};
 
 	void SetUp() override
 	{
-		cb = CBuffer<int>(10);
 		int testValues[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 		for (int& val : testValues)
 		{
